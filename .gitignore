@@ -9,9 +9,14 @@ lerna-debug.log*
 
 frontend/node_modules
 backend/node_modules
+node_modules
 dist
 dist-ssr
 *.local
+
+test.json
+backend/test-council.ts
+backend/test-qwen.ts
 
 # Editor directories and files
 .vscode/*
