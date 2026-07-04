@@ -1,7 +1,11 @@
 // CodeInput.tsx
-// Left panel: code textarea, language toggle (EN/FR output), and the run button.
+// Left panel: code textarea, output-language toggle, and the run button.
+// Uses shadcn/ui Button + Textarea for consistent, polished styling.
 
 import type { OutputLanguage } from "../types"
+import { Button } from "../components/ui/button"
+import { Textarea } from "../components/ui/textarea"
+import { Play } from "lucide-react"
 
 interface CodeInputProps {
   code: string
@@ -23,55 +27,57 @@ export function CodeInput({
   isRunning,
 }: CodeInputProps) {
   return (
-    <div className="flex flex-col h-full border-r border-gray-200">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200">
-        <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+    <div className="flex flex-col h-full border-r border-border bg-background">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Code input
         </span>
-        <div className="flex items-center gap-1 text-xs">
-          <button
-            onClick={() => onLanguageChange("en")}
-            className={`px-2 py-0.5 rounded-full transition-colors ${
-              language === "en" ? "bg-gray-900 text-white" : "text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            EN
-          </button>
-          <button
-            onClick={() => onLanguageChange("fr")}
-            className={`px-2 py-0.5 rounded-full transition-colors ${
-              language === "fr" ? "bg-gray-900 text-white" : "text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            FR
-          </button>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-muted-foreground">Review output:</span>
+          <div className="flex items-center gap-0.5 rounded-full bg-muted p-0.5">
+            <Button
+              size="sm"
+              variant={language === "en" ? "default" : "ghost"}
+              className="h-6 px-2.5 text-xs rounded-full shadow-none"
+              onClick={() => onLanguageChange("en")}
+            >
+              EN
+            </Button>
+            <Button
+              size="sm"
+              variant={language === "fr" ? "default" : "ghost"}
+              className="h-6 px-2.5 text-xs rounded-full shadow-none"
+              onClick={() => onLanguageChange("fr")}
+            >
+              FR
+            </Button>
+          </div>
         </div>
       </div>
 
-      <textarea
-        value={code}
-        onChange={(e) => onCodeChange(e.target.value)}
-        placeholder="Paste your JavaScript, TypeScript, Python, or C code here..."
-        spellCheck={false}
-        className="flex-1 p-4 font-mono text-[13px] leading-relaxed text-gray-700 resize-none outline-none placeholder:text-gray-300"
-        disabled={isRunning}
-      />
-
-      <div className="flex gap-2 px-4 py-3 border-t border-gray-200">
-        <button
-          onClick={onClear}
+      <div className="flex-1 p-3 bg-muted/30 min-h-0">
+        <Textarea
+          value={code}
+          onChange={(e) => onCodeChange(e.target.value)}
+          placeholder="Paste your JavaScript, TypeScript, Python, or C code here..."
+          spellCheck={false}
           disabled={isRunning}
-          className="flex-1 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors"
-        >
+          className="h-full resize-none font-mono text-[13px] leading-relaxed bg-background shadow-sm"
+        />
+      </div>
+
+      <div className="flex gap-2 px-4 py-3 border-t border-border">
+        <Button variant="outline" onClick={onClear} disabled={isRunning} className="flex-1">
           Clear
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={onRun}
           disabled={isRunning || code.trim().length === 0}
-          className="flex-1 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:hover:bg-indigo-600 transition-colors"
+          className="flex-1 gap-1.5"
         >
+          <Play className="size-3.5" />
           {isRunning ? "Council in session…" : "Run council"}
-        </button>
+        </Button>
       </div>
     </div>
   )

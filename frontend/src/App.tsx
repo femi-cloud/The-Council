@@ -9,6 +9,9 @@ import { AgentCard } from "./components/AgentCard"
 import { ConflictBanner } from "./components/ConflictBanner"
 import { ModeratorVerdict } from "./components/ModeratorVerdict"
 import { MetricsBar } from "./components/MetricsBar"
+import { ThemeToggle } from "./components/ThemeToggle"
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./components/ui/resizable"
+import { useMediaQuery } from "./hooks/useMediaQuery"
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001"
 const AGENT_ORDER: AgentRole[] = ["security", "performance", "readability", "architect"]
@@ -32,6 +35,7 @@ export default function App() {
   const [language, setLanguage] = useState<OutputLanguage>("en")
   const [isRunning, setIsRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isDesktop = useMediaQuery("(min-width: 768px)")
 
   const [agentStatuses, setAgentStatuses] = useState(initialStatuses)
   const [agentResponses, setAgentResponses] = useState(initialResponses)
@@ -173,67 +177,78 @@ export default function App() {
   }, [resetState])
 
   return (
-    <div className="h-screen flex flex-col bg-white">
-      <header className="flex items-center gap-3 px-5 py-3 border-b border-gray-200 bg-gray-50">
-        <span className="text-sm font-medium text-gray-900">
-          The <span className="text-indigo-600">Council</span>
+    <div className="h-screen flex flex-col bg-background text-foreground">
+      <header className="flex items-center gap-3 px-5 py-3 border-b border-border bg-card">
+        <span className="text-sm font-medium text-foreground">
+          The <span className="text-indigo-600 dark:text-indigo-400">Council</span>
         </span>
-        <span className="text-xs text-gray-400">JS/TS · Python · C</span>
-        {isRunning && (
-          <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-            Debating
-          </span>
-        )}
-        {!isRunning && metrics && (
-          <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-            Done
-          </span>
-        )}
+        <span className="hidden sm:inline text-xs text-muted-foreground">JS/TS · Python · C</span>
+        <div className="ml-auto flex items-center gap-2">
+          {isRunning && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
+              Debating
+            </span>
+          )}
+          {!isRunning && metrics && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              Done
+            </span>
+          )}
+          <ThemeToggle />
+        </div>
       </header>
 
       {error && (
-        <div className="px-5 py-2 bg-red-50 border-b border-red-200 text-xs text-red-700">
+        <div className="px-5 py-2 bg-destructive/10 border-b border-destructive/30 text-xs text-destructive">
           {error}
         </div>
       )}
 
-      <main className="flex-1 grid grid-cols-2 min-h-0">
-        <CodeInput
-          code={code}
-          onCodeChange={setCode}
-          language={language}
-          onLanguageChange={setLanguage}
-          onRun={runCouncil}
-          onClear={handleClear}
-          isRunning={isRunning}
-        />
+      <main className="flex-1 min-h-0">
+        <ResizablePanelGroup orientation={isDesktop ? "horizontal" : "vertical"}>
+          <ResizablePanel defaultSize={isDesktop ? 45 : 50} minSize={isDesktop ? 25 : 20}>
+            <CodeInput
+              code={code}
+              onCodeChange={setCode}
+              language={language}
+              onLanguageChange={setLanguage}
+              onRun={runCouncil}
+              onClear={handleClear}
+              isRunning={isRunning}
+            />
+          </ResizablePanel>
 
-        <div className="flex flex-col min-h-0 overflow-y-auto">
-          <div className="grid grid-cols-2">
-            {AGENT_ORDER.map((agent) => (
-              <AgentCard
-                key={agent}
-                agent={agent}
-                status={agentStatuses[agent]}
-                response={agentResponses[agent]}
-              />
-            ))}
-          </div>
+          <ResizableHandle withHandle />
 
-          <ConflictBanner conflicts={conflicts} />
-          <ModeratorVerdict verdict={moderatorVerdict} isThinking={moderatorThinking} />
+          <ResizablePanel defaultSize={55} minSize={30}>
+            <div className="flex flex-col h-full min-h-0 overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2">
+                {AGENT_ORDER.map((agent) => (
+                  <AgentCard
+                    key={agent}
+                    agent={agent}
+                    status={agentStatuses[agent]}
+                    response={agentResponses[agent]}
+                  />
+                ))}
+              </div>
 
-          {metrics && (
-            <div className="mt-auto">
-              <MetricsBar
-                totalFindings={metrics.totalFindings}
-                soloBaseline={metrics.soloBaseline}
-                conflictCount={metrics.conflictCount}
-                durationMs={metrics.durationMs}
-              />
+              <ConflictBanner conflicts={conflicts} />
+              <ModeratorVerdict verdict={moderatorVerdict} isThinking={moderatorThinking} />
+
+              {metrics && (
+                <div className="mt-auto">
+                  <MetricsBar
+                    totalFindings={metrics.totalFindings}
+                    soloBaseline={metrics.soloBaseline}
+                    conflictCount={metrics.conflictCount}
+                    durationMs={metrics.durationMs}
+                  />
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </main>
     </div>
   )

@@ -2,9 +2,11 @@
 // Bottom bar showing the review's key numbers — this is the "proof" strip
 // judges look at to see the council's value over a single-agent baseline.
 
+import { Separator } from "../components/ui/separator"
+
 interface MetricsBarProps {
   totalFindings: number
-  soloBaseline: number | null // findings a single agent found on the same code, if benchmarked
+  soloBaseline: number | null
   conflictCount: number
   durationMs: number | null
 }
@@ -14,14 +16,17 @@ export function MetricsBar({ totalFindings, soloBaseline, conflictCount, duratio
   const durationLabel = durationMs !== null ? `${(durationMs / 1000).toFixed(1)}s` : "—"
 
   return (
-    <div className="flex border-t border-gray-200 px-3 py-2">
+    <div className="flex items-stretch border-t border-border bg-card px-3 py-2.5">
       <Metric value={totalFindings} label="Findings" />
+      <Separator orientation="vertical" className="h-8 self-center" />
       <Metric
         value={delta !== null ? (delta >= 0 ? `+${delta}` : `${delta}`) : "—"}
         label="vs solo"
         positive={delta !== null && delta > 0}
       />
+      <Separator orientation="vertical" className="h-8 self-center" />
       <Metric value={conflictCount} label="Conflicts" />
+      <Separator orientation="vertical" className="h-8 self-center" />
       <Metric value={durationLabel} label="Duration" />
     </div>
   )
@@ -38,10 +43,10 @@ function Metric({
 }) {
   return (
     <div className="flex-1 text-center">
-      <div className={`text-base font-medium ${positive ? "text-emerald-600" : "text-gray-900"}`}>
+      <div className={`text-base font-semibold ${positive ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
         {value}
       </div>
-      <div className="text-[10px] text-gray-400">{label}</div>
+      <div className="text-[10px] text-muted-foreground">{label}</div>
     </div>
   )
 }
