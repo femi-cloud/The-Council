@@ -1,3 +1,7 @@
+// prompts.ts
+// The core of the project: each agent has a distinct personality and a
+// non-negotiable analysis lens. Debate quality depends entirely on prompt quality.
+
 export type AgentRole = "security" | "performance" | "readability" | "architect"
 export type OutputLanguage = "en" | "fr"
 
@@ -15,7 +19,7 @@ export interface AgentResponse {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Format JSON commun imposé à tous les agents
+// JSON format enforced on all agents
 // ─────────────────────────────────────────────────────────────
 const JSON_FORMAT_INSTRUCTION = `
 You must respond ONLY with valid JSON, no markdown, no preamble, no code fences.
@@ -160,7 +164,22 @@ ${languageInstruction(lang)}
 }
 
 // ─────────────────────────────────────────────────────────────
-// Lookup helper — utilisé par orchestrator.ts
+// SOLO BASELINE — generic, non-specialized reviewer used only for
+// benchmarking the council's value (single agent vs 4-agent debate).
+// ─────────────────────────────────────────────────────────────
+export function soloPrompt(lang: OutputLanguage): string {
+  return `
+You are a senior software engineer doing a general code review. Cover security, performance,
+readability, and architecture all at once, to the best of your ability, as a single reviewer would
+in a normal PR review — you don't have unlimited time to go deep on every angle.
+
+${JSON_FORMAT_INSTRUCTION}
+${languageInstruction(lang)}
+`.trim()
+}
+
+// ─────────────────────────────────────────────────────────────
+// Lookup helper — used by orchestrator.ts
 // ─────────────────────────────────────────────────────────────
 export const AGENT_PROMPTS: Record<AgentRole, (lang: OutputLanguage) => string> = {
   security: securityPrompt,

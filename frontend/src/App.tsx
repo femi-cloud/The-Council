@@ -1,130 +1,240 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+// App.tsx
+// Top-level component: owns all review state, drives the SSE stream consumption,
+// and lays out the debate view (code input on the left, agent grid + verdict on the right).
+
+import { useState, useCallback } from "react"
+import type { AgentRole, AgentResponse, AgentStatus, Conflict, ModeratorVerdict as ModeratorVerdictType, OutputLanguage, StreamEvent } from "./types"
+import { CodeInput } from "./components/CodeInput"
+import { AgentCard } from "./components/AgentCard"
+import { ConflictBanner } from "./components/ConflictBanner"
+import { ModeratorVerdict } from "./components/ModeratorVerdict"
+import { MetricsBar } from "./components/MetricsBar"
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001"
+const AGENT_ORDER: AgentRole[] = ["security", "performance", "readability", "architect"]
+
+const initialStatuses: Record<AgentRole, AgentStatus> = {
+  security: "idle",
+  performance: "idle",
+  readability: "idle",
+  architect: "idle",
+}
+
+const initialResponses: Record<AgentRole, AgentResponse | null> = {
+  security: null,
+  performance: null,
+  readability: null,
+  architect: null,
+}
 
 export default function App() {
+  const [code, setCode] = useState("")
+  const [language, setLanguage] = useState<OutputLanguage>("en")
+  const [isRunning, setIsRunning] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const [agentStatuses, setAgentStatuses] = useState(initialStatuses)
+  const [agentResponses, setAgentResponses] = useState(initialResponses)
+  const [conflicts, setConflicts] = useState<Conflict[]>([])
+  const [moderatorVerdict, setModeratorVerdict] = useState<ModeratorVerdictType | null>(null)
+  const [moderatorThinking, setModeratorThinking] = useState(false)
+  const [metrics, setMetrics] = useState<{
+    totalFindings: number
+    soloBaseline: number
+    conflictCount: number
+    durationMs: number
+  } | null>(null)
+
+  const resetState = useCallback(() => {
+    setAgentStatuses(initialStatuses)
+    setAgentResponses(initialResponses)
+    setConflicts([])
+    setModeratorVerdict(null)
+    setModeratorThinking(false)
+    setMetrics(null)
+    setError(null)
+  }, [])
+
+  const handleEvent = useCallback((event: StreamEvent) => {
+    switch (event.type) {
+      case "agent_start":
+        setAgentStatuses((prev) => ({ ...prev, [event.agent]: "analyzing" }))
+        break
+
+      case "agent_done":
+        setAgentStatuses((prev) => ({ ...prev, [event.agent]: "done" }))
+        setAgentResponses((prev) => ({ ...prev, [event.agent]: event.response }))
+        break
+
+      case "debate_start":
+        // Security and Performance are always the guaranteed debaters (see orchestrator.ts).
+        // Other agents may also join, but we only find out for sure via debate_done.
+        setAgentStatuses((prev) => ({
+          ...prev,
+          security: "debating",
+          performance: "debating",
+        }))
+        break
+
+      case "debate_done":
+        setAgentStatuses((prev) => {
+          const next = { ...prev }
+          event.responses.forEach((r) => {
+            next[r.agent] = "done"
+          })
+          return next
+        })
+        setAgentResponses((prev) => {
+          const next = { ...prev }
+          event.responses.forEach((r) => {
+            next[r.agent] = r
+          })
+          return next
+        })
+        break
+
+      case "moderator_start":
+        setModeratorThinking(true)
+        break
+
+      case "moderator_done":
+        setModeratorThinking(false)
+        setModeratorVerdict(event.verdict)
+        break
+
+      case "result":
+        // Final, post-debate conflict list and metrics — more accurate than the
+        // noisy initial scan, which is only used server-side to decide who debates.
+        setConflicts(event.result.conflicts)
+        setMetrics(event.result.metrics)
+        break
+
+      case "error":
+        setError(event.message)
+        break
+
+      // "conflicts_detected" is intentionally not handled here — it reflects the
+      // noisy pre-debate scan and would flash misleading banners in the UI.
+    }
+  }, [])
+
+  const runCouncil = useCallback(async () => {
+    if (!code.trim() || isRunning) return
+
+    resetState()
+    setIsRunning(true)
+
+    try {
+      const response = await fetch(`${API_URL}/api/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, language }),
+      })
+
+      if (!response.ok || !response.body) {
+        const err = await response.json().catch(() => ({ error: "Request failed" }))
+        throw new Error(err.error || `HTTP ${response.status}`)
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const events = buffer.split("\n\n")
+        buffer = events.pop() || "" // last chunk may be incomplete, keep it for next read
+
+        for (const raw of events) {
+          const line = raw.trim()
+          if (!line.startsWith("data:")) continue // skip heartbeat comments and blank lines
+          const jsonStr = line.slice(5).trim()
+          try {
+            const parsed: StreamEvent = JSON.parse(jsonStr)
+            handleEvent(parsed)
+          } catch {
+            // Ignore malformed chunks rather than crashing the whole stream
+          }
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || "Connection to the council failed")
+    } finally {
+      setIsRunning(false)
+    }
+  }, [code, language, isRunning, resetState, handleEvent])
+
+  const handleClear = useCallback(() => {
+    setCode("")
+    resetState()
+  }, [resetState])
+
   return (
-    <div className="bg-red-500 text-white p-8 text-2xl">
-      Test Tailwind
+    <div className="h-screen flex flex-col bg-white">
+      <header className="flex items-center gap-3 px-5 py-3 border-b border-gray-200 bg-gray-50">
+        <span className="text-sm font-medium text-gray-900">
+          The <span className="text-indigo-600">Council</span>
+        </span>
+        <span className="text-xs text-gray-400">JS/TS · Python · C</span>
+        {isRunning && (
+          <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+            Debating
+          </span>
+        )}
+        {!isRunning && metrics && (
+          <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+            Done
+          </span>
+        )}
+      </header>
+
+      {error && (
+        <div className="px-5 py-2 bg-red-50 border-b border-red-200 text-xs text-red-700">
+          {error}
+        </div>
+      )}
+
+      <main className="flex-1 grid grid-cols-2 min-h-0">
+        <CodeInput
+          code={code}
+          onCodeChange={setCode}
+          language={language}
+          onLanguageChange={setLanguage}
+          onRun={runCouncil}
+          onClear={handleClear}
+          isRunning={isRunning}
+        />
+
+        <div className="flex flex-col min-h-0 overflow-y-auto">
+          <div className="grid grid-cols-2">
+            {AGENT_ORDER.map((agent) => (
+              <AgentCard
+                key={agent}
+                agent={agent}
+                status={agentStatuses[agent]}
+                response={agentResponses[agent]}
+              />
+            ))}
+          </div>
+
+          <ConflictBanner conflicts={conflicts} />
+          <ModeratorVerdict verdict={moderatorVerdict} isThinking={moderatorThinking} />
+
+          {metrics && (
+            <div className="mt-auto">
+              <MetricsBar
+                totalFindings={metrics.totalFindings}
+                soloBaseline={metrics.soloBaseline}
+                conflictCount={metrics.conflictCount}
+                durationMs={metrics.durationMs}
+              />
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   )
 }
-
-// function App() {
-//   const [count, setCount] = useState(0)
-
-//   return (
-//     <>
-//       <section id="center">
-//         <div className="hero">
-//           <img src={heroImg} className="base" width="170" height="179" alt="" />
-//           <img src={reactLogo} className="framework" alt="React logo" />
-//           <img src={viteLogo} className="vite" alt="Vite logo" />
-//         </div>
-//         <div>
-//           <h1>Get started</h1>
-//           <p>
-//             Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-//           </p>
-//         </div>
-//         <button
-//           type="button"
-//           className="counter"
-//           onClick={() => setCount((count) => count + 1)}
-//         >
-//           Count is {count}
-//         </button>
-//       </section>
-
-//       <div className="ticks"></div>
-
-//       <section id="next-steps">
-//         <div id="docs">
-//           <svg className="icon" role="presentation" aria-hidden="true">
-//             <use href="/icons.svg#documentation-icon"></use>
-//           </svg>
-//           <h2>Documentation</h2>
-//           <p>Your questions, answered</p>
-//           <ul>
-//             <li>
-//               <a href="https://vite.dev/" target="_blank">
-//                 <img className="logo" src={viteLogo} alt="" />
-//                 Explore Vite
-//               </a>
-//             </li>
-//             <li>
-//               <a href="https://react.dev/" target="_blank">
-//                 <img className="button-icon" src={reactLogo} alt="" />
-//                 Learn more
-//               </a>
-//             </li>
-//           </ul>
-//         </div>
-//         <div id="social">
-//           <svg className="icon" role="presentation" aria-hidden="true">
-//             <use href="/icons.svg#social-icon"></use>
-//           </svg>
-//           <h2>Connect with us</h2>
-//           <p>Join the Vite community</p>
-//           <ul>
-//             <li>
-//               <a href="https://github.com/vitejs/vite" target="_blank">
-//                 <svg
-//                   className="button-icon"
-//                   role="presentation"
-//                   aria-hidden="true"
-//                 >
-//                   <use href="/icons.svg#github-icon"></use>
-//                 </svg>
-//                 GitHub
-//               </a>
-//             </li>
-//             <li>
-//               <a href="https://chat.vite.dev/" target="_blank">
-//                 <svg
-//                   className="button-icon"
-//                   role="presentation"
-//                   aria-hidden="true"
-//                 >
-//                   <use href="/icons.svg#discord-icon"></use>
-//                 </svg>
-//                 Discord
-//               </a>
-//             </li>
-//             <li>
-//               <a href="https://x.com/vite_js" target="_blank">
-//                 <svg
-//                   className="button-icon"
-//                   role="presentation"
-//                   aria-hidden="true"
-//                 >
-//                   <use href="/icons.svg#x-icon"></use>
-//                 </svg>
-//                 X.com
-//               </a>
-//             </li>
-//             <li>
-//               <a href="https://bsky.app/profile/vite.dev" target="_blank">
-//                 <svg
-//                   className="button-icon"
-//                   role="presentation"
-//                   aria-hidden="true"
-//                 >
-//                   <use href="/icons.svg#bluesky-icon"></use>
-//                 </svg>
-//                 Bluesky
-//               </a>
-//             </li>
-//           </ul>
-//         </div>
-//       </section>
-
-//       <div className="ticks"></div>
-//       <section id="spacer"></section>
-//     </>
-//   )
-// }
-
-// export default App

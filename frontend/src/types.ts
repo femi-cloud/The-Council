@@ -39,6 +39,7 @@ export interface CouncilResult {
   moderatorVerdict: ModeratorVerdict
   metrics: {
     totalFindings: number
+    soloBaseline: number
     conflictCount: number
     durationMs: number
   }

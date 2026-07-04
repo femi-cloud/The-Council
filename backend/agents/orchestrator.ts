@@ -1,8 +1,13 @@
+// orchestrator.ts
+// Full pipeline: ingestion → parallel analysis → conflict detection →
+// debate (1 round) → Moderator verdict.
+
 import OpenAI from "openai"
 import {
   AGENT_PROMPTS,
   AGENT_LABELS,
   moderatorPrompt,
+  soloPrompt,
   AgentRole,
   OutputLanguage,
   AgentResponse,
@@ -49,6 +54,7 @@ export interface CouncilResult {
   moderatorVerdict: ModeratorVerdict
   metrics: {
     totalFindings: number
+    soloBaseline: number
     conflictCount: number
     durationMs: number
   }
@@ -118,6 +124,24 @@ function safeParseJSON(raw: string): { findings: Finding[]; overall_take: string
   }
 }
 
+// Solo baseline call — same mechanics as callAgent, but with the generic
+// non-specialized prompt. Used only to benchmark the council's added value.
+async function callSolo(code: string, lang: OutputLanguage): Promise<Finding[]> {
+  const completion = await client.chat.completions.create({
+    model: MODEL,
+    messages: [
+      { role: "system", content: soloPrompt(lang) },
+      { role: "user", content: `Code to review:\n\`\`\`\n${code}\n\`\`\`` },
+    ],
+    temperature: 0.4,
+    max_tokens: 600,
+  })
+
+  const raw = completion.choices[0].message.content || "{}"
+  const parsed = safeParseJSON(raw)
+  return parsed.findings || []
+}
+
 // ─────────────────────────────────────────────────────────────
 // Moderator call
 // ─────────────────────────────────────────────────────────────
@@ -183,7 +207,8 @@ export async function runCouncil(
 ): Promise<CouncilResult> {
   const startTime = Date.now()
 
-  // 1. Round 1 — independent parallel analysis
+  // 1. Round 1 — independent parallel analysis, plus a solo baseline call
+  // running alongside it (same latency budget, used only for benchmarking).
   onEvent?.({ type: "debate_start" }) // generic start signal (optional, UI-side)
   const round1Promises = AGENT_ROLES.map(async (role) => {
     onEvent?.({ type: "agent_start", agent: role })
@@ -191,7 +216,11 @@ export async function runCouncil(
     onEvent?.({ type: "agent_done", agent: role, response })
     return response
   })
-  const round1Responses = await Promise.all(round1Promises)
+  const soloPromise = callSolo(code, lang)
+  const [round1Responses, soloFindings] = await Promise.all([
+    Promise.all(round1Promises),
+    soloPromise,
+  ])
   const guardedRound1 = enforceLanes(round1Responses)
 
   // 2. Initial conflict scan — informational, also used to decide which agents
@@ -247,6 +276,7 @@ export async function runCouncil(
     moderatorVerdict,
     metrics: {
       totalFindings,
+      soloBaseline: soloFindings.length,
       conflictCount: conflicts.length,
       durationMs: Date.now() - startTime,
     },
