@@ -63,7 +63,7 @@ export function AgentCard({ agent, status, response }: AgentCardProps) {
       {(status === "analyzing" || status === "debating") && !response && (
         <p className="text-xs text-gray-400">
           Analyzing code
-          <span className="inline-block w-[2px] h-3 bg-gray-400 ml-0.5 align-middle animate-pulse" />
+          <span className="inline-block w-0.5 h-3 bg-gray-400 ml-0.5 align-middle animate-pulse" />
         </p>
       )}
 
