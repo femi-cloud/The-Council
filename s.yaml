@@ -1,0 +1,42 @@
+# s.yaml
+# Alibaba Cloud Function Compute deployment configuration for the backend.
+#
+# NOTE: Full ECS/Function Compute deployment via `s deploy` requires Alibaba Cloud
+# payment-method verification, which is currently blocked for many hackathon
+# participants (a widely documented issue on the hackathon Discord — KYC rejections,
+# Forbidden.RiskControl errors, PaymentChannelProcessFail across multiple countries).
+#
+# In the meantime, the backend's actual AI inference runs directly on Alibaba
+# Cloud Model Studio (Qwen Cloud) — see backend/agents/orchestrator.ts and
+# backend/.env.example for the live API integration and base URL.
+
+edition: 3.0.0
+name: the-council-backend
+
+vars:
+  region: "ap-southeast-1" # Singapore — Model Studio free-quota region
+
+resources:
+  council_backend:
+    component: fc3
+    props:
+      region: ${vars.region}
+      functionName: "the-council-backend"
+      description: "The Council — multi-agent code review backend (Global AI Hackathon, Agent Society track)"
+      runtime: "nodejs18"
+      handler: "dist/server.handler"
+      code: ./backend
+      timeout: 60
+      memorySize: 512
+      environmentVariables:
+        NODE_ENV: "production"
+        # QWEN_API_KEY and QWEN_BASE_URL are set via the Function Compute console,
+        # not hardcoded here — see backend/.env.example for the required variables.
+      triggers:
+        - triggerName: "http-trigger"
+          triggerType: "http"
+          triggerConfig:
+            authType: "anonymous"
+            methods:
+              - GET
+              - POST
