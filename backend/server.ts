@@ -8,6 +8,7 @@ import cors from "cors"
 import "dotenv/config"
 import { runCouncil, StreamEvent } from "./agents/orchestrator"
 import { OutputLanguage } from "./agents/prompts"
+import { saveReview, getRecentReviews } from "./db"
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -47,6 +48,7 @@ app.post("/api/review", async (req, res) => {
 
   try {
     const result = await runCouncil(code, language || "en", sendEvent)
+    saveReview(code, language || "en", result)
     sendEvent({ type: "result", result })
   } catch (err: any) {
     sendEvent({ type: "error", message: err.message || "Unknown error during council review" })
@@ -54,6 +56,11 @@ app.post("/api/review", async (req, res) => {
     clearInterval(heartbeat)
     res.end()
   }
+})
+
+app.get("/api/history", (_req, res) => {
+  const reviews = getRecentReviews(20)
+  res.json(reviews)
 })
 
 app.listen(PORT, () => {

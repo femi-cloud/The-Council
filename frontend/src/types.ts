@@ -73,3 +73,12 @@ export const AGENT_COLORS: Record<AgentRole, { bg: string; text: string; avatarB
   readability: { bg: "bg-emerald-50", text: "text-emerald-700", avatarBg: "bg-emerald-100" },
   architect: { bg: "bg-violet-50", text: "text-violet-700", avatarBg: "bg-violet-100" },
 }
+
+// Mirrors backend's db/index.ts ReviewRecord shape — one saved review from history.
+export interface ReviewRecord {
+  id: number
+  code: string
+  language: OutputLanguage
+  result: CouncilResult
+  created_at: string
+}

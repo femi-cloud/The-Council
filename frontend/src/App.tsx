@@ -12,6 +12,10 @@ import { MetricsBar } from "./components/MetricsBar"
 import { ThemeToggle } from "./components/ThemeToggle"
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./components/ui/resizable"
 import { useMediaQuery } from "./hooks/useMediaQuery"
+import { HistoryPanel } from "./components/HistoryPanel"
+import type { ReviewRecord } from "./types"
+import { Plus } from "lucide-react"
+import { Button } from "./components/ui/button"
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001"
 const AGENT_ORDER: AgentRole[] = ["security", "performance", "readability", "architect"]
@@ -36,6 +40,7 @@ export default function App() {
   const [isRunning, setIsRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const isDesktop = useMediaQuery("(min-width: 768px)")
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
 
   const [agentStatuses, setAgentStatuses] = useState(initialStatuses)
   const [agentResponses, setAgentResponses] = useState(initialResponses)
@@ -111,6 +116,7 @@ export default function App() {
         // noisy initial scan, which is only used server-side to decide who debates.
         setConflicts(event.result.conflicts)
         setMetrics(event.result.metrics)
+        setHistoryRefreshKey((k) => k + 1) 
         break
 
       case "error":
@@ -176,6 +182,24 @@ export default function App() {
     resetState()
   }, [resetState])
 
+  const loadFromHistory = useCallback((review: ReviewRecord) => {
+  setCode(review.code)
+  setLanguage(review.language)
+  setError(null)
+  const statuses: Record<AgentRole, AgentStatus> = {
+    security: "done", performance: "done", readability: "done", architect: "done",
+  }
+  setAgentStatuses(statuses)
+  const responses: Record<AgentRole, AgentResponse | null> = {
+    security: null, performance: null, readability: null, architect: null,
+  }
+  review.result.debateRound.forEach((r) => { responses[r.agent] = r })
+  setAgentResponses(responses)
+  setConflicts(review.result.conflicts)
+  setModeratorVerdict(review.result.moderatorVerdict)
+  setMetrics(review.result.metrics)
+}, [])
+
   return (
     <div className="h-screen flex flex-col bg-background text-foreground">
       <header className="flex items-center gap-3 px-5 py-3 border-b border-border bg-card">
@@ -194,6 +218,16 @@ export default function App() {
               Done
             </span>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={handleClear}
+          >
+            <Plus className="size-3.5" />
+            New council
+          </Button>
+          <HistoryPanel onSelect={loadFromHistory} refreshKey={historyRefreshKey} />
           <ThemeToggle />
         </div>
       </header>
