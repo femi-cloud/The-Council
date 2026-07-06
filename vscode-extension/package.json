@@ -1,0 +1,46 @@
+{
+  "name": "the-council-vscode",
+  "displayName": "The Council — AI Code Review",
+  "description": "Multi-agent AI code review, powered by Qwen Cloud, right inside VS Code.",
+  "version": "0.1.0",
+  "publisher": "the-council",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "council.reviewSelection",
+        "title": "The Council: Review selection (or whole file)"
+      }
+    ],
+    "configuration": {
+      "title": "The Council",
+      "properties": {
+        "council.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:3001",
+          "description": "Base URL of The Council backend (see backend/server.ts)."
+        },
+        "council.outputLanguage": {
+          "type": "string",
+          "enum": ["en", "fr"],
+          "default": "en",
+          "description": "Language for the agents' review findings."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  }
+}
