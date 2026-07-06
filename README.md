@@ -20,6 +20,16 @@ See the diagram below for the full architecture.
 
 ![Architecture diagram](docs/architecture.png)
 
+### Interface
+ 
+- Split, resizable panels (code input / debate view) — collapses to a stacked layout on mobile
+- Dark and light mode
+- Real-time streaming debate view: each agent's findings appear as they're generated, not after a full wait
+
+### VS Code extension
+
+A working extension lives in [`vscode-extension/`](./vscode-extension) — select any code, run **"The Council: Review selection"** from the command palette, and the same four-agent debate runs against your local backend, with results shown in an editor-side panel. See the folder's `package.json` for setup, or press F5 inside VS Code to try it in an Extension Development Host.
+
 ## Tech stack
 
 - **Frontend**: React + TypeScript + Vite, Tailwind CSS
